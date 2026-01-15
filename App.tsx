@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { STORAGE_KEY, INITIAL_STATE } from './constants';
 import { AppState, User, Task, Course, Submission, Role } from './types';
@@ -13,14 +12,14 @@ import UserManagement from './components/UserManagement';
 import Settings from './components/Settings';
 import Leaderboard from './components/Leaderboard';
 import MentorChat from './components/MentorChat';
-import { Language } from './translations';
+import { Language, translations } from './translations';
 
 const CLOUD_API_URL = 'https://api.restful-api.dev/objects';
 const SESSION_KEY = 'edusync_session_v10';
 const CLOUD_ID_STORAGE = 'edusync_cloud_id_v10';
+const SYNC_INTERVAL = 120000; // 2 minut
 
 const App: React.FC = () => {
-  // 1. Local storage-dan yuklash (darhol ko'rinishi uchun)
   const [state, setState] = useState<AppState>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -42,7 +41,14 @@ const App: React.FC = () => {
   });
 
   const [isSyncing, setIsSyncing] = useState(false);
-  const [cloudId, setCloudId] = useState<string | null>(localStorage.getItem(CLOUD_ID_STORAGE));
+  const [isRateLimited, setIsRateLimited] = useState(false);
+  const [isLimitBannerDismissed, setIsLimitBannerDismissed] = useState(false);
+  
+  const [cloudId, setCloudId] = useState<string | null>(() => {
+    const saved = localStorage.getItem(CLOUD_ID_STORAGE);
+    return (saved && saved !== 'undefined' && saved !== 'null' && saved.trim().length > 3) ? saved : null;
+  });
+
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<string>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -50,16 +56,26 @@ const App: React.FC = () => {
   const [lang, setLang] = useState<Language>('uz');
 
   const lastProcessedHash = useRef<string>('');
+  const consecutiveFailures = useRef<number>(0);
 
-  // 2. Bulutga ma'lumot yuborish (Faqat bitta ID orqali)
-  const pushToCloud = useCallback(async (data: AppState) => {
-    if (!cloudId) return;
+  const checkRateLimit = (text: string) => {
+    if (text.toLowerCase().includes("limit") || text.toLowerCase().includes("reached your limit") || text.includes("100 requests")) {
+      setIsRateLimited(true);
+      return true;
+    }
+    return false;
+  };
+
+  const pushToCloud = useCallback(async (data: AppState, force = false) => {
+    if (!cloudId || cloudId === 'undefined') return;
+    if (isRateLimited && !force) return;
+
     const currentHash = JSON.stringify(data);
-    if (currentHash === lastProcessedHash.current) return;
+    if (!force && currentHash === lastProcessedHash.current) return;
 
     setIsSyncing(true);
     try {
-      await fetch(`${CLOUD_API_URL}/${cloudId}`, {
+      const res = await fetch(`${CLOUD_API_URL}/${cloudId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -67,23 +83,57 @@ const App: React.FC = () => {
           data: { ...data, lastUpdated: Date.now() }
         })
       });
+      
+      const text = await res.text();
+      if (!res.ok) {
+        if (checkRateLimit(text)) return;
+        throw new Error("Push failed");
+      }
+
       lastProcessedHash.current = currentHash;
       setLastSyncTime(new Date().toLocaleTimeString());
+      consecutiveFailures.current = 0;
+      setIsRateLimited(false);
     } catch (e) {
       console.warn("Cloud push failed");
     } finally {
       setIsSyncing(false);
     }
-  }, [cloudId]);
+  }, [cloudId, isRateLimited]);
 
-  // 3. Bulutdan ma'lumotni olish
-  const pullFromCloud = useCallback(async () => {
-    if (!cloudId || isSyncing) return;
+  const pullFromCloud = useCallback(async (force = false) => {
+    if (!cloudId || cloudId === 'undefined') return;
+    if (isSyncing && !force) return;
+    if (isRateLimited && !force) return;
+
+    setIsSyncing(true);
     try {
       const res = await fetch(`${CLOUD_API_URL}/${cloudId}`);
-      if (res.status === 404) return; // ID xato bo'lsa
-      const result = await res.json();
+      
+      if (res.status === 429) {
+          setIsRateLimited(true);
+          return;
+      }
+
+      const text = await res.text();
+      if (!res.ok) {
+          if (checkRateLimit(text)) return;
+          if (res.status === 404) {
+              consecutiveFailures.current += 1;
+              if (consecutiveFailures.current > 5) {
+                setCloudId(null);
+                localStorage.removeItem(CLOUD_ID_STORAGE);
+              }
+          }
+          return;
+      }
+      
+      const result = JSON.parse(text);
+      if (!result.data) return;
+      
       const cloudData = result.data as AppState;
+      consecutiveFailures.current = 0;
+      setIsRateLimited(false);
 
       if (cloudData && cloudData.lastUpdated > state.lastUpdated) {
         lastProcessedHash.current = JSON.stringify(cloudData);
@@ -97,39 +147,59 @@ const App: React.FC = () => {
       }
     } catch (e) {
       console.warn("Cloud pull failed");
+    } finally {
+      setIsSyncing(false);
     }
-  }, [cloudId, state.lastUpdated, isSyncing, currentUser]);
+  }, [cloudId, state.lastUpdated, isSyncing, currentUser, isRateLimited]);
 
-  // 4. Yangi Cloud ID yaratish (Birinchi marta)
   const createNewCloudId = async () => {
     setIsSyncing(true);
+    setIsRateLimited(false); // Reset limited state to try fresh
     try {
       const res = await fetch(CLOUD_API_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: "EduSync_User_Data", data: state })
+        body: JSON.stringify({ 
+            name: "EduSync_User_Data", 
+            data: { ...state, lastUpdated: Date.now() } 
+        })
       });
-      const result = await res.json();
-      setCloudId(result.id);
-      localStorage.setItem(CLOUD_ID_STORAGE, result.id);
+      
+      const text = await res.text();
+      if (!res.ok) {
+        checkRateLimit(text);
+        return;
+      }
+
+      const result = JSON.parse(text);
+      if (result && result.id) {
+        setCloudId(result.id);
+        localStorage.setItem(CLOUD_ID_STORAGE, result.id);
+        lastProcessedHash.current = JSON.stringify(state);
+        consecutiveFailures.current = 0;
+        setIsRateLimited(false);
+        setIsLimitBannerDismissed(false);
+        setLastSyncTime(new Date().toLocaleTimeString());
+        alert("Sinxronizatsiya muvaffaqiyatli tiklandi!");
+      }
     } catch (e) {
-      alert("Internet aloqasini tekshiring!");
+      console.error("Sync creation error:", e);
+      setIsRateLimited(true);
     } finally {
       setIsSyncing(false);
     }
   };
 
-  // Effektlar
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }, [state]);
 
   useEffect(() => {
-    if (cloudId) {
-      const interval = setInterval(pullFromCloud, 4000); // 4 soniyada bir tekshirish
+    if (cloudId && cloudId !== 'undefined' && !isRateLimited) {
+      const interval = setInterval(pullFromCloud, SYNC_INTERVAL);
       return () => clearInterval(interval);
     }
-  }, [pullFromCloud, cloudId]);
+  }, [pullFromCloud, cloudId, isRateLimited]);
 
   const updateState = (updater: (prev: AppState) => AppState) => {
     setState(prev => {
@@ -172,6 +242,8 @@ const App: React.FC = () => {
     return <Login onLogin={handleLogin} onRegister={handleRegister} onReset={() => {localStorage.clear(); window.location.reload();}} lang={lang} setLang={setLang} />;
   }
 
+  const hasCloudConnection = cloudId !== null && cloudId !== 'undefined' && cloudId.length > 3;
+
   return (
     <div className="flex h-screen bg-[#0f172a]">
       <Sidebar 
@@ -181,10 +253,45 @@ const App: React.FC = () => {
       <div className="flex-1 flex flex-col overflow-hidden relative">
         <Header 
           user={currentUser} toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
-          lang={lang} setLang={setLang} isSynced={!!cloudId} isSyncing={isSyncing}
+          lang={lang} setLang={setLang} isSynced={hasCloudConnection} isSyncing={isSyncing} isRateLimited={isRateLimited}
+          onManualSync={() => { 
+            if (isRateLimited) {
+                createNewCloudId();
+            } else {
+                pullFromCloud(true).then(() => pushToCloud(state, true)); 
+            }
+          }}
         />
         <main className="flex-1 overflow-y-auto p-4 md:p-8">
           <div className="max-w-7xl mx-auto space-y-6">
+            {isRateLimited && !isLimitBannerDismissed && (
+              <div className="bg-amber-500/10 border border-amber-500/20 p-6 rounded-3xl flex flex-col md:flex-row items-center gap-6 animate-in fade-in slide-in-from-top-4 duration-500 shadow-2xl shadow-amber-900/10">
+                <div className="w-14 h-14 bg-amber-500 text-white rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-amber-900/20">
+                  <i className="fas fa-bolt text-2xl"></i>
+                </div>
+                <div className="flex-1 text-center md:text-left">
+                  <p className="text-amber-500 font-black text-sm uppercase tracking-widest">Hozirda Sinxronizatsiya To'xtadi</p>
+                  <p className="text-slate-300 text-xs mt-1 leading-relaxed">
+                    Sizda ma'lumotlar saqlanishi davom etmoqda. Agarda bulutli xotira <b>hozir kerak bo'lsa</b>, yangi ulanishni yarating.
+                  </p>
+                </div>
+                <div className="flex flex-wrap justify-center gap-2 w-full md:w-auto">
+                    <button 
+                        onClick={createNewCloudId}
+                        className="px-6 py-3 bg-blue-600 hover:bg-blue-500 text-white text-[10px] font-black uppercase rounded-xl transition-all shadow-xl active:scale-95"
+                    >
+                        <i className="fas fa-magic mr-2"></i> Hozir tiklash
+                    </button>
+                    <button 
+                        onClick={() => setIsLimitBannerDismissed(true)}
+                        className="px-6 py-3 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[10px] font-black uppercase rounded-xl border border-slate-700 transition-all"
+                    >
+                        Keyinroq
+                    </button>
+                </div>
+              </div>
+            )}
+            
             {currentView === 'dashboard' && <Dashboard state={state} currentUser={currentUser} lang={lang} />}
             {currentView === 'courses' && (
               <CourseList 
@@ -208,7 +315,8 @@ const App: React.FC = () => {
                 tasks={Object.values(state.tasks)} courses={state.courses} submissions={state.submissions} currentUser={currentUser} 
                 onSubmit={s => updateState(p => ({...p, submissions: {...p.submissions, [s.id]: s}}))} 
                 onAddTask={t => updateState(p => ({...p, tasks: {...p.tasks, [t.id]: t}}))} 
-                onUpdateTask={(id, u) => updateState(p => ({...p, tasks: {...p.tasks, [id]: {...p.tasks[id], ...u}}}))} 
+                // Fix: Correctly update the tasks record by targeting the specific task ID instead of incorrectly spreading the task object itself into the record
+                onUpdateTask={(id, u) => updateState(p => ({...p, tasks: { ...p.tasks, [id]: p.tasks[id] ? { ...p.tasks[id], ...u } : p.tasks[id] } }))} 
                 lang={lang} 
               />
             )}
@@ -233,20 +341,34 @@ const App: React.FC = () => {
                 user={currentUser} 
                 onPasswordChange={(u,h) => updateState(p => ({...p, users: {...p.users, [u]: {...p.users[u], passwordHash: h}}}))} 
                 lang={lang} state={state} onImport={s => updateState(() => s)} 
-                syncId={cloudId || ''} onSyncIdChange={id => { setCloudId(id); localStorage.setItem(CLOUD_ID_STORAGE, id); }} 
-                isSynced={!!cloudId} isSyncing={isSyncing} lastSyncTime={lastSyncTime} 
+                syncId={hasCloudConnection ? cloudId : ''} 
+                onSyncIdChange={id => { 
+                    if(!id || id.trim() === '') {
+                        setCloudId(null);
+                        localStorage.removeItem(CLOUD_ID_STORAGE);
+                    } else {
+                        const cleanId = id.trim();
+                        setCloudId(cleanId); 
+                        localStorage.setItem(CLOUD_ID_STORAGE, cleanId); 
+                        setIsRateLimited(false);
+                        pullFromCloud(true);
+                    }
+                }} 
+                isSynced={hasCloudConnection} isSyncing={isSyncing} lastSyncTime={lastSyncTime} isRateLimited={isRateLimited}
               />
             )}
             {currentView === 'leaderboard' && <Leaderboard state={state} lang={lang} />}
           </div>
         </main>
-        {/* Sinxronizatsiya tugmasi agar ulanmagan bo'lsa */}
-        {!cloudId && (
+        
+        {!hasCloudConnection && (
           <button 
             onClick={createNewCloudId}
-            className="fixed bottom-24 right-6 bg-emerald-600 text-white px-6 py-3 rounded-full shadow-2xl font-bold animate-bounce z-50"
+            disabled={isSyncing}
+            className={`fixed bottom-24 right-6 px-6 py-4 rounded-full shadow-2xl font-black uppercase text-[10px] transition-all z-50 disabled:opacity-50 bg-emerald-600 hover:bg-emerald-500 animate-bounce tracking-widest text-white`}
           >
-            <i className="fas fa-cloud-upload-alt mr-2"></i> Sinxronizatsiyani yoqish
+            <i className={`fas ${isSyncing ? 'fa-sync fa-spin' : 'fa-cloud-upload-alt'} mr-2`}></i> 
+            Sinxronizatsiyani Yoqish
           </button>
         )}
         <MentorChat isOpen={isMentorOpen} setIsOpen={setIsMentorOpen} lang={lang} />
