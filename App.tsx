@@ -17,8 +17,10 @@ import { Language } from './translations';
 
 const GLOBAL_CLOUD_ID = 'edusync_v1_auto_master_database';
 const CLOUD_API_URL = 'https://api.restful-api.dev/objects';
+const SESSION_KEY = 'edusync_session_user_v1';
 
 const App: React.FC = () => {
+  // 1. Load global state
   const [state, setState] = useState<AppState>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -28,9 +30,25 @@ const App: React.FC = () => {
     }
   });
 
+  // 2. Load session (current user)
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    try {
+      const savedSession = localStorage.getItem(SESSION_KEY);
+      if (savedSession) {
+        // Initial state load from localstorage is already done above, 
+        // we just need to find the user in that state
+        const savedState = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+        const users = savedState.users || INITIAL_STATE.users;
+        return users[savedSession] || null;
+      }
+    } catch (e) {
+      return null;
+    }
+    return null;
+  });
+
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentView, setCurrentView] = useState<string>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMentorOpen, setIsMentorOpen] = useState(false);
@@ -38,6 +56,16 @@ const App: React.FC = () => {
 
   const skipPushOnce = useRef(false);
   const lastCloudStateStr = useRef('');
+
+  // Update session object if global state user info changes (e.g. totalScore)
+  useEffect(() => {
+    if (currentUser) {
+      const updatedUserData = state.users[currentUser.username];
+      if (updatedUserData && JSON.stringify(updatedUserData) !== JSON.stringify(currentUser)) {
+        setCurrentUser(updatedUserData);
+      }
+    }
+  }, [state.users, currentUser]);
 
   const pushToCloud = useCallback(async (newState: AppState) => {
     if (skipPushOnce.current) {
@@ -106,6 +134,7 @@ const App: React.FC = () => {
     const user = state.users?.[cleanUsername];
     if (user && user.role === role && user.passwordHash === passwordHash) {
       setCurrentUser(user);
+      localStorage.setItem(SESSION_KEY, cleanUsername);
       return true;
     }
     return false;
@@ -128,6 +157,7 @@ const App: React.FC = () => {
       users: { ...prev.users, [cleanUsername]: newUser }
     }));
     setCurrentUser(newUser);
+    localStorage.setItem(SESSION_KEY, cleanUsername);
     return true;
   };
 
@@ -138,6 +168,10 @@ const App: React.FC = () => {
       delete newUsers[username];
       return { ...prev, users: newUsers };
     });
+    // If deleted user is current user (shouldn't happen for admin actions), logout
+    if (currentUser?.username === username) {
+      logout();
+    }
   };
 
   const changePassword = (username: string, newHash: string) => {
@@ -160,6 +194,7 @@ const App: React.FC = () => {
 
   const logout = () => {
     setCurrentUser(null);
+    localStorage.removeItem(SESSION_KEY);
     setCurrentView('dashboard');
   };
 
@@ -176,7 +211,6 @@ const App: React.FC = () => {
         courses: { ...prev.courses, [courseId]: { ...course, studentUsernames: [...course.studentUsernames, user.username] } }
       };
     });
-    setCurrentUser(prev => prev ? { ...prev, courses: [...prev.courses, courseId] } : null);
   };
 
   if (!currentUser) {
