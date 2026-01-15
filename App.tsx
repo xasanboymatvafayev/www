@@ -34,7 +34,8 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<string>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [lang, setLang] = useState<Language>('uz');
-  const [isChatOpen, setIsChatOpen] = useState(false);
+  // New: Management of AI Mentor chat state
+  const [isMentorChatOpen, setIsMentorChatOpen] = useState(false);
 
   const skipPushOnce = useRef(false);
   const lastCloudStateStr = useRef('');
@@ -240,7 +241,7 @@ const App: React.FC = () => {
         onLogout={logout}
         lang={lang}
       />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden relative">
         <Header 
           user={currentUser} 
           toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
@@ -254,7 +255,12 @@ const App: React.FC = () => {
             {renderContent()}
           </div>
         </main>
-        <MentorChat isOpen={isChatOpen} setIsOpen={setIsChatOpen} lang={lang} />
+        {/* New: Render AI Mentor Chat component */}
+        <MentorChat 
+          isOpen={isMentorChatOpen} 
+          setIsOpen={setIsMentorChatOpen} 
+          lang={lang} 
+        />
       </div>
     </div>
   );

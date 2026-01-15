@@ -26,7 +26,6 @@ export const translations = {
     disconnected: "Oflayn",
     syncing: "Sinxronlanmoqda...",
     
-    // Dashboard
     activeCourses: "Faol kurslar",
     totalTasks: "Jami vazifalar",
     submissions: "Yuborilgan ishlar",
@@ -35,7 +34,6 @@ export const translations = {
     platformNews: "Platforma yangiliklari",
     newsDesc: "EduSync tizimi ishga tushdi. Ma'lumotlar avtomatik sinxronlanadi.",
     
-    // Courses
     browseCourses: "Mavjud kurslar bilan tanishing.",
     createCourse: "Kurs yaratish",
     newCourse: "Yangi kurs",
@@ -52,7 +50,6 @@ export const translations = {
     intermediate: "O'rta",
     advanced: "Yuqori",
     
-    // Tasks
     trackTasks: "Vazifalarni bajaring va natijalarni kuzatib boring.",
     newAssignment: "Yangi topshiriq",
     staticTask: "Oddiy vazifa",
@@ -68,7 +65,6 @@ export const translations = {
     completed: "Bajarildi",
     solutionPlaceholder: "Javobingizni shu yerga yozing...",
     
-    // Grading
     reviewSubmissions: "Ishlarni tekshiring va baholang.",
     status: "Holat",
     grade: "Baholash",
@@ -80,7 +76,6 @@ export const translations = {
     feedback: "Izoh",
     noSubmissions: "Hozircha hech narsa yo'q.",
     
-    // Leaderboard
     topStudents: "Eng yuqori ball to'plagan talabalar.",
     filterByCourse: "Kurs bo'yicha",
     allCourses: "Barcha kurslar",
@@ -88,7 +83,6 @@ export const translations = {
     student: "Talaba",
     score: "Ball",
     
-    // Settings
     accountSettings: "Hisob va bulut sozlamalari.",
     cloudSync: "Bulutli sinxronizatsiya",
     syncStatus: "Holat",
@@ -104,7 +98,6 @@ export const translations = {
     importData: "Import",
     importWarning: "Ma'lumotlar almashadi. Davom etasizmi?",
     
-    // Login
     login: "Kirish",
     register: "Ro'yxatdan o'tish",
     createAccount: "Hisob ochish",
@@ -115,11 +108,11 @@ export const translations = {
     incorrectSecret: "Xato parol!",
     resetSystem: "Tozalash",
 
-    // Mentor
-    mentorGreeting: "Assalomu alaykum! Men sizning akademik mentoringizman. Qanday yordam bera olaman?",
+    // AI Mentor translations
     mentorTitle: "AI Mentor",
-    mentorThinking: "O'ylayapman...",
-    mentorPlaceholder: "Savolingizni yozing..."
+    mentorGreeting: "Assalomu alaykum! Men sizning akademik mentoringizman. Qanday yordam bera olaman?",
+    mentorPlaceholder: "Savolingizni yozing...",
+    mentorThinking: "O'ylamoqdaman...",
   },
   en: {
     welcome: "Welcome",
@@ -220,11 +213,11 @@ export const translations = {
     incorrectSecret: "Wrong secret!",
     resetSystem: "Reset",
 
-    // Mentor
-    mentorGreeting: "Hello! I am your academic mentor. How can I help you today?",
+    // AI Mentor translations
     mentorTitle: "AI Mentor",
+    mentorGreeting: "Hello! I am your academic mentor. How can I help you today?",
+    mentorPlaceholder: "Type your question...",
     mentorThinking: "Thinking...",
-    mentorPlaceholder: "Type your question..."
   },
   ru: {
     welcome: "Добро пожаловать",
@@ -325,10 +318,10 @@ export const translations = {
     incorrectSecret: "Неверный пароль!",
     resetSystem: "Сброс",
 
-    // Mentor
-    mentorGreeting: "Здравствуйте! Я ваш академический наставник. Чем я могу вам помочь?",
+    // AI Mentor translations
     mentorTitle: "AI Ментор",
+    mentorGreeting: "Здравствуйте! Я ваш академический ментор. Чем я могу вам помочь?",
+    mentorPlaceholder: "Введите ваш вопрос...",
     mentorThinking: "Думаю...",
-    mentorPlaceholder: "Введите ваш вопрос..."
   }
 };
