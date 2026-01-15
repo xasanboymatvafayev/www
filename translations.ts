@@ -107,12 +107,10 @@ export const translations = {
     loginTaken: "Login band!",
     incorrectSecret: "Xato parol!",
     resetSystem: "Tozalash",
-
-    // AI Mentor translations
+    mentorGreeting: "Salom! Men sizning AI mentoringizman. Qanday yordam bera olaman?",
     mentorTitle: "AI Mentor",
-    mentorGreeting: "Assalomu alaykum! Men sizning akademik mentoringizman. Qanday yordam bera olaman?",
-    mentorPlaceholder: "Savolingizni yozing...",
     mentorThinking: "O'ylamoqdaman...",
+    mentorPlaceholder: "Savolingizni yozing..."
   },
   en: {
     welcome: "Welcome",
@@ -212,12 +210,10 @@ export const translations = {
     loginTaken: "Username taken!",
     incorrectSecret: "Wrong secret!",
     resetSystem: "Reset",
-
-    // AI Mentor translations
+    mentorGreeting: "Hello! I am your AI Mentor. How can I help you today?",
     mentorTitle: "AI Mentor",
-    mentorGreeting: "Hello! I am your academic mentor. How can I help you today?",
-    mentorPlaceholder: "Type your question...",
     mentorThinking: "Thinking...",
+    mentorPlaceholder: "Type your question..."
   },
   ru: {
     welcome: "Добро пожаловать",
@@ -279,7 +275,7 @@ export const translations = {
     completed: "Завершено",
     solutionPlaceholder: "Напишите ваш ответ...",
     reviewSubmissions: "Проверяйте работы студентов.",
-    status: "Статус",
+    status: "Status",
     grade: "Оценка",
     submitted: "Отправлено",
     pending: "Ожидает",
@@ -317,11 +313,9 @@ export const translations = {
     loginTaken: "Логин занят!",
     incorrectSecret: "Неверный пароль!",
     resetSystem: "Сброс",
-
-    // AI Mentor translations
-    mentorTitle: "AI Ментор",
-    mentorGreeting: "Здравствуйте! Я ваш академический ментор. Чем я могу вам помочь?",
-    mentorPlaceholder: "Введите ваш вопрос...",
+    mentorGreeting: "Привет! Я ваш ИИ-ментор. Чем я могу вам помочь?",
+    mentorTitle: "ИИ-Ментор",
     mentorThinking: "Думаю...",
+    mentorPlaceholder: "Введите ваш вопрос..."
   }
 };

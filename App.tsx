@@ -33,9 +33,8 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [currentView, setCurrentView] = useState<string>('dashboard');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isMentorOpen, setIsMentorOpen] = useState(false);
   const [lang, setLang] = useState<Language>('uz');
-  // New: Management of AI Mentor chat state
-  const [isMentorChatOpen, setIsMentorChatOpen] = useState(false);
 
   const skipPushOnce = useRef(false);
   const lastCloudStateStr = useRef('');
@@ -255,12 +254,8 @@ const App: React.FC = () => {
             {renderContent()}
           </div>
         </main>
-        {/* New: Render AI Mentor Chat component */}
-        <MentorChat 
-          isOpen={isMentorChatOpen} 
-          setIsOpen={setIsMentorChatOpen} 
-          lang={lang} 
-        />
+        {/* Render MentorChat and pass visibility state */}
+        <MentorChat isOpen={isMentorOpen} setIsOpen={setIsMentorOpen} lang={lang} />
       </div>
     </div>
   );

@@ -1,25 +1,26 @@
+
 import { GoogleGenAI } from "@google/genai";
 
-// Fix: Use process.env.API_KEY directly for initialization as per guidelines.
-// @ts-ignore: process.env is injected at runtime and might not be recognized by the static type checker in this environment.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
+/**
+ * AI Mentor xizmati uchun Gemini API integratsiyasi.
+ * Har doim chaqiruvdan oldin yangi GoogleGenAI instance yaratiladi.
+ */
 export const getMentorResponse = async (userPrompt: string, context: string) => {
+  // Named parameter initialization with process.env.API_KEY
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+  
   try {
-    // Fix: Use ai.models.generateContent with the specific model name and system instruction for better persona separation.
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: 'gemini-3-flash-preview',
       contents: userPrompt,
       config: {
-        systemInstruction: `You are an expert academic mentor on a video course platform. 
-        Context: ${context}
-        Instructions: Provide a helpful, encouraging, and concise answer. If they ask about code, explain the logic.`,
+        systemInstruction: context,
       },
     });
-    // Fix: Access response text using the .text property (not a method call).
-    return response.text || "I'm sorry, I couldn't generate a response right now.";
+    // Direct property access to .text
+    return response.text || "Kechirasiz, javob olib bo'lmadi.";
   } catch (error) {
-    console.error("Gemini Error:", error);
-    return "Error connecting to AI Mentor. Please check your network.";
+    console.error("Gemini API Error:", error);
+    return "AI Mentor bilan bog'lanishda xatolik yuz berdi.";
   }
 };
