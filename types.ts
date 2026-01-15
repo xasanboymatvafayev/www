@@ -22,7 +22,7 @@ export interface Task {
   textContent?: string;
   videoUrl?: string;
   videoFilename?: string;
-  timeLimit?: number; // In minutes for 'lesson'
+  timeLimit?: number;
   maxPoints: number;
   deadline: string;
   createdDate: string;
@@ -60,4 +60,5 @@ export interface AppState {
   courses: Record<string, Course>;
   tasks: Record<string, Task>;
   submissions: Record<string, Submission>;
+  lastUpdated: number; // Cloud sinxronizatsiya uchun muhim
 }

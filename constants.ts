@@ -1,7 +1,7 @@
 
 import { AppState } from './types';
 
-export const STORAGE_KEY = 'edusync_v7_secret_admin';
+export const STORAGE_KEY = 'edusync_v10_final';
 
 export const INITIAL_STATE: AppState = {
   users: {
@@ -17,5 +17,6 @@ export const INITIAL_STATE: AppState = {
   },
   courses: {},
   tasks: {},
-  submissions: {}
+  submissions: {},
+  lastUpdated: Date.now()
 };
