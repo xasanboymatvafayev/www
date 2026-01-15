@@ -15,12 +15,13 @@ import Leaderboard from './components/Leaderboard';
 import MentorChat from './components/MentorChat';
 import { Language } from './translations';
 
-const GLOBAL_CLOUD_ID = 'edusync_v1_auto_master_database';
+// O'ta unikal ID - ma'lumotlar aralashib ketmasligi uchun
+const GLOBAL_CLOUD_ID = 'edusync_ultra_v10_master_db';
 const CLOUD_API_URL = 'https://api.restful-api.dev/objects';
-const SESSION_KEY = 'edusync_session_user_v1';
+const SESSION_KEY = 'edusync_active_session_user';
 
 const App: React.FC = () => {
-  // 1. Load global state
+  // 1. Asosiy ma'lumotlar holati (LocalStorage dan yuklash)
   const [state, setState] = useState<AppState>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
@@ -30,16 +31,15 @@ const App: React.FC = () => {
     }
   });
 
-  // 2. Load session (current user)
+  // 2. Foydalanuvchi seansini saqlab qolish
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
-      const savedSession = localStorage.getItem(SESSION_KEY);
-      if (savedSession) {
-        // Initial state load from localstorage is already done above, 
-        // we just need to find the user in that state
-        const savedState = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-        const users = savedState.users || INITIAL_STATE.users;
-        return users[savedSession] || null;
+      const savedUsername = localStorage.getItem(SESSION_KEY);
+      if (savedUsername) {
+        // LocalStorage dagi ma'lumotni eng yangisini olish uchun STORAGE_KEY ni qayta tekshiramiz
+        const localData = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+        const users = localData.users || INITIAL_STATE.users;
+        return users[savedUsername] || null;
       }
     } catch (e) {
       return null;
@@ -57,22 +57,59 @@ const App: React.FC = () => {
   const skipPushOnce = useRef(false);
   const lastCloudStateStr = useRef('');
 
-  // Update session object if global state user info changes (e.g. totalScore)
-  useEffect(() => {
-    if (currentUser) {
-      const updatedUserData = state.users[currentUser.username];
-      if (updatedUserData && JSON.stringify(updatedUserData) !== JSON.stringify(currentUser)) {
-        setCurrentUser(updatedUserData);
-      }
-    }
-  }, [state.users, currentUser]);
+  // 3. Bulutdan ma'lumotlarni tortish (Pull)
+  const pullFromCloud = useCallback(async () => {
+    setIsSyncing(true);
+    try {
+      // Barcha obyektlarni olamiz (API cheklovi sababli shunday qilish xavfsizroq)
+      const response = await fetch(CLOUD_API_URL);
+      if (!response.ok) throw new Error('Network error');
+      const results = await response.json();
+      
+      if (results && Array.isArray(results)) {
+        // Bizning ID ga mos keladigan eng oxirgi obyektni topamiz
+        const ourObjects = results.filter(obj => obj.name === GLOBAL_CLOUD_ID);
+        if (ourObjects.length > 0) {
+          const latestEntry = ourObjects[ourObjects.length - 1];
+          const cloudData = latestEntry.data as AppState;
+          const cloudDataStr = JSON.stringify(cloudData);
+          const currentStateStr = JSON.stringify(state);
 
+          // Agar bulutdagi ma'lumot mahalliy ma'lumotdan farq qilsa, yangilaymiz
+          if (cloudDataStr !== currentStateStr && cloudDataStr !== lastCloudStateStr.current) {
+            console.log("Cloud Sync: Local state updated from cloud.");
+            skipPushOnce.current = true;
+            setState(cloudData);
+            setLastSyncTime(new Date().toLocaleTimeString());
+            lastCloudStateStr.current = cloudDataStr;
+
+            // Agar joriy foydalanuvchi ma'lumoti o'zgargan bo'lsa (masalan, ball qo'shilgan bo'lsa)
+            if (currentUser) {
+              const updatedUser = cloudData.users[currentUser.username];
+              if (updatedUser) {
+                setCurrentUser(updatedUser);
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Cloud Pull error:', e);
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [state, currentUser]);
+
+  // 4. Bulutga ma'lumotlarni yuborish (Push)
   const pushToCloud = useCallback(async (newState: AppState) => {
     if (skipPushOnce.current) {
       skipPushOnce.current = false;
       return;
     }
     
+    const newStateStr = JSON.stringify(newState);
+    if (newStateStr === lastCloudStateStr.current) return;
+
     setIsSyncing(true);
     try {
       await fetch(CLOUD_API_URL, {
@@ -83,8 +120,9 @@ const App: React.FC = () => {
           data: newState
         })
       });
+      console.log("Cloud Sync: Pushed to cloud.");
       setLastSyncTime(new Date().toLocaleTimeString());
-      lastCloudStateStr.current = JSON.stringify(newState);
+      lastCloudStateStr.current = newStateStr;
     } catch (e) {
       console.error('Cloud Push error:', e);
     } finally {
@@ -92,40 +130,17 @@ const App: React.FC = () => {
     }
   }, []);
 
-  const pullFromCloud = useCallback(async () => {
-    setIsSyncing(true);
-    try {
-      const response = await fetch(`${CLOUD_API_URL}?name=${GLOBAL_CLOUD_ID}`);
-      const results = await response.json();
-      
-      if (results && Array.isArray(results) && results.length > 0) {
-        const latestEntry = results[results.length - 1];
-        const cloudData = latestEntry.data;
-        const cloudDataStr = JSON.stringify(cloudData);
-
-        if (cloudDataStr !== JSON.stringify(state) && cloudDataStr !== lastCloudStateStr.current) {
-          skipPushOnce.current = true;
-          setState(cloudData);
-          setLastSyncTime(new Date().toLocaleTimeString());
-          lastCloudStateStr.current = cloudDataStr;
-        }
-      }
-    } catch (e) {
-      console.error('Cloud Pull error:', e);
-    } finally {
-      setIsSyncing(false);
-    }
-  }, [state]);
-
+  // Effekt: Har safar state o'zgarganda LocalStorage ga saqlash va bulutga yuborish
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    const timer = setTimeout(() => pushToCloud(state), 2000);
+    const timer = setTimeout(() => pushToCloud(state), 3000);
     return () => clearTimeout(timer);
   }, [state, pushToCloud]);
 
+  // Effekt: Avtomatik sinxronizatsiya (har 5 soniyada)
   useEffect(() => {
     pullFromCloud();
-    const interval = setInterval(pullFromCloud, 10000);
+    const interval = setInterval(pullFromCloud, 5000);
     return () => clearInterval(interval);
   }, [pullFromCloud]);
 
@@ -143,6 +158,7 @@ const App: React.FC = () => {
   const handleRegister = (username: string, passwordHash: string) => {
     const cleanUsername = username.toLowerCase().trim();
     if (state.users?.[cleanUsername]) return false;
+    
     const newUser: User = {
       username: cleanUsername,
       passwordHash,
@@ -152,6 +168,7 @@ const App: React.FC = () => {
       rating: 0,
       registrationDate: new Date().toISOString()
     };
+    
     setState(prev => ({
       ...prev,
       users: { ...prev.users, [cleanUsername]: newUser }
@@ -161,6 +178,12 @@ const App: React.FC = () => {
     return true;
   };
 
+  const logout = () => {
+    setCurrentUser(null);
+    localStorage.removeItem(SESSION_KEY);
+    setCurrentView('dashboard');
+  };
+
   const deleteUser = (username: string) => {
     if (username === 'admin') return; 
     setState(prev => {
@@ -168,10 +191,6 @@ const App: React.FC = () => {
       delete newUsers[username];
       return { ...prev, users: newUsers };
     });
-    // If deleted user is current user (shouldn't happen for admin actions), logout
-    if (currentUser?.username === username) {
-      logout();
-    }
   };
 
   const changePassword = (username: string, newHash: string) => {
@@ -186,16 +205,7 @@ const App: React.FC = () => {
          }
        };
     });
-    if (currentUser && currentUser.username === username) {
-      setCurrentUser(prev => prev ? { ...prev, passwordHash: newHash } : null);
-    }
     return true;
-  };
-
-  const logout = () => {
-    setCurrentUser(null);
-    localStorage.removeItem(SESSION_KEY);
-    setCurrentView('dashboard');
   };
 
   const enrollInCourse = (courseId: string) => {
@@ -288,7 +298,6 @@ const App: React.FC = () => {
             {renderContent()}
           </div>
         </main>
-        {/* Render MentorChat and pass visibility state */}
         <MentorChat isOpen={isMentorOpen} setIsOpen={setIsMentorOpen} lang={lang} />
       </div>
     </div>
