@@ -10,11 +10,10 @@ interface HeaderProps {
   setLang: (l: Language) => void;
   isSynced?: boolean;
   isSyncing?: boolean;
-  isRateLimited?: boolean;
   onManualSync?: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ user, toggleSidebar, lang, setLang, isSynced, isSyncing, isRateLimited, onManualSync }) => {
+const Header: React.FC<HeaderProps> = ({ user, toggleSidebar, lang, setLang, isSynced, isSyncing, onManualSync }) => {
   const t = translations[lang] as any;
 
   return (
@@ -33,18 +32,15 @@ const Header: React.FC<HeaderProps> = ({ user, toggleSidebar, lang, setLang, isS
           
           <div 
             onClick={!isSyncing ? onManualSync : undefined}
-            title={isRateLimited ? "Limit to'lgan! Yangi ID yaratish uchun bosing." : "Sinxronlash"}
-            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter border transition-all shadow-sm cursor-pointer hover:scale-105 active:scale-95 group ${
+            className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter border transition-all cursor-pointer hover:scale-105 active:scale-95 ${
             isSyncing 
               ? 'bg-blue-500/10 text-blue-500 border-blue-500/20 animate-pulse' 
-              : isRateLimited
-                ? 'bg-amber-500 text-black border-amber-600 animate-bounce'
-                : isSynced 
-                  ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/20' 
-                  : 'bg-red-500/10 text-red-500 border-red-500/20'
+              : isSynced 
+                ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20' 
+                : 'bg-red-500/10 text-red-500 border-red-500/20'
           }`}>
-            <i className={`fas ${isSyncing ? 'fa-sync-alt fa-spin' : isRateLimited ? 'fa-bolt' : isSynced ? 'fa-cloud' : 'fa-cloud-slash'} text-[8px]`}></i>
-            {isSyncing ? t.syncing : isRateLimited ? "Tiklash" : (isSynced ? "Onlayn" : t.disconnected)}
+            <i className={`fas ${isSyncing ? 'fa-sync-alt fa-spin' : isSynced ? 'fa-cloud' : 'fa-cloud-slash'} text-[8px]`}></i>
+            {isSyncing ? t.syncing : (isSynced ? t.connected : t.disconnected)}
           </div>
         </div>
       </div>

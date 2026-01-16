@@ -1,5 +1,8 @@
 {
-  "name": "EduSync AI - Video Course Platform",
-  "description": "A sophisticated educational platform for managing video courses, tasks, and timed lessons with an integrated Gemini-powered AI mentor.",
-  "requestFramePermissions": []
+  "name": "EduSync AI - Cloud Video Platform",
+  "description": "Markazlashgan bulutli bazaga ega ko'p foydalanuvchili ta'lim platformasi.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
 }

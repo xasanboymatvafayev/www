@@ -5,7 +5,8 @@ import { Language, translations } from '../translations';
 
 interface LoginProps {
   onLogin: (u: string, p: string, r: Role) => boolean;
-  onRegister: (u: string, p: string) => boolean;
+  // Updated onRegister to accept Promise<boolean> or boolean to fix the type mismatch in App.tsx
+  onRegister: (u: string, p: string) => Promise<boolean> | boolean;
   onReset: () => void;
   lang: Language;
   setLang: (l: Language) => void;
@@ -40,7 +41,8 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onReset, lang, setLa
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Made handleSubmit async to correctly await the onRegister promise
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     const cleanUsername = username.trim().toLowerCase();
@@ -49,7 +51,9 @@ const Login: React.FC<LoginProps> = ({ onLogin, onRegister, onReset, lang, setLa
 
     const pHash = hashPassword(cleanPassword);
     if (isRegistering) {
-      if (!onRegister(cleanUsername, pHash)) {
+      // Awaiting the result of onRegister which returns a Promise<boolean> in App.tsx
+      const success = await onRegister(cleanUsername, pHash);
+      if (!success) {
         setError(t.loginTaken);
       }
     } else {
