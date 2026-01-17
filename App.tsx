@@ -15,7 +15,8 @@ import Leaderboard from './components/Leaderboard';
 import MentorChat from './components/MentorChat';
 import { Language } from './translations';
 
-const GLOBAL_DATABASE_ID = 'edusync_v22_global_secure_db'; 
+// BU ID NI O'ZGARTIRMANG! Barcha qurilmalaringizda bir xil bo'lishi shart.
+const GLOBAL_DATABASE_ID = 'edusync_enterprise_cloud_v105_unique'; 
 const API_URL = 'https://api.restful-api.dev/objects';
 const SESSION_KEY = 'edusync_active_session';
 
@@ -29,118 +30,121 @@ const App: React.FC = () => {
   const [isMentorOpen, setIsMentorOpen] = useState(false);
   const [lang, setLang] = useState<Language>('uz');
 
-  const lastSyncHash = useRef<string>('');
-
-  // 1. Serverdan ma'lumotlarni olish va birlashtirish
-  const pullData = useCallback(async (): Promise<AppState | null> => {
-    setIsSyncing(true);
+  // Serverdan ma'lumotni keshsiz (fresh) olish
+  const fetchLatestFromServer = async (): Promise<AppState | null> => {
     try {
-      const res = await fetch(`${API_URL}/${GLOBAL_DATABASE_ID}`);
-      if (res.ok) {
-        const result = await res.json();
-        const serverData = result.data as AppState;
-        
-        // Serverdagi ma'lumot yangiroq bo'lsa yoki bizda hali ma'lumot bo'lmasa
-        if (serverData && serverData.lastUpdated > state.lastUpdated) {
-          setState(prev => {
-            const merged = {
-              ...serverData,
-              // Lokal o'zgarishlarni yo'qotmaslik uchun ehtiyotkorona birlashtirish
-              users: { ...serverData.users, ...prev.users },
-              courses: { ...serverData.courses, ...prev.courses },
-              tasks: { ...serverData.tasks, ...prev.tasks },
-              submissions: { ...serverData.submissions, ...prev.submissions },
-              lastUpdated: Math.max(serverData.lastUpdated, prev.lastUpdated)
-            };
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
-            return merged;
-          });
-          setIsOnline(true);
-          return serverData;
-        }
-        setIsOnline(true);
-      } else if (res.status === 404) {
-        // Baza hali mavjud emas bo'lsa, yaratish uchun push qilamiz
-        await pushData(state);
+      // ?nocache=... qo'shish brauzerni eski ma'lumotni ko'rsatishdan to'xtatadi
+      const response = await fetch(`${API_URL}/${GLOBAL_DATABASE_ID}?t=${Date.now()}`);
+      if (response.ok) {
+        const result = await response.json();
+        return result.data as AppState;
       }
     } catch (e) {
-      setIsOnline(false);
-    } finally {
-      setIsSyncing(false);
+      console.error("Cloud Fetch Error:", e);
     }
     return null;
-  }, [state.lastUpdated]);
+  };
 
-  // 2. Ma'lumotlarni serverga yuborish (PUT ishlatiladi)
-  const pushData = useCallback(async (data: AppState) => {
-    setIsSyncing(true);
+  // Ma'lumotni serverga yuborish
+  const pushToServer = async (newState: AppState) => {
     try {
-      // restful-api.dev da mavjud obyektni yangilash uchun PUT ishlatiladi
-      const res = await fetch(`${API_URL}/${GLOBAL_DATABASE_ID}`, {
+      const payload = {
+        name: "EduSync_Global_Storage",
+        data: { ...newState, lastUpdated: Date.now() }
+      };
+
+      const putRes = await fetch(`${API_URL}/${GLOBAL_DATABASE_ID}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          name: "EduSync_Global_Store", 
-          data: { ...data, lastUpdated: Date.now() } 
-        })
+        body: JSON.stringify(payload)
       });
 
-      // Agar PUT 404 bersa (baza hali yaratilmagan), POST bilan yaratamiz
-      if (res.status === 404) {
+      if (putRes.status === 404) {
+        // Agar hali baza yaratilmagan bo'lsa
         await fetch(API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            id: GLOBAL_DATABASE_ID,
-            name: "EduSync_Global_Store", 
-            data: { ...data, lastUpdated: Date.now() } 
-          })
+          body: JSON.stringify({ id: GLOBAL_DATABASE_ID, ...payload })
         });
       }
       setIsOnline(true);
     } catch (e) {
       setIsOnline(false);
-    } finally {
-      setIsSyncing(false);
     }
-  }, []);
+  };
 
-  // Ilova yuklanganda eng oxirgi ma'lumotni olish
-  useEffect(() => {
-    pullData();
-    const savedUsername = localStorage.getItem(SESSION_KEY);
-    if (savedUsername) {
-      // LocalStorage dagi ma'lumotni ham tekshirib olish
-      const local = localStorage.getItem(STORAGE_KEY);
-      if (local) {
-        const parsed = JSON.parse(local);
-        if (parsed.users[savedUsername]) {
-          setCurrentUser(parsed.users[savedUsername]);
-          setState(parsed);
-        }
+  // 1. Sinxronizatsiya (PULL)
+  const syncWithCloud = useCallback(async (force = false) => {
+    if (isSyncing && !force) return;
+    setIsSyncing(true);
+    const cloud = await fetchLatestFromServer();
+    if (cloud) {
+      // Serverdagi ma'lumot bizdagidan yangiroq bo'lsa yoki "force" bo'lsa yangilaymiz
+      if (force || cloud.lastUpdated > state.lastUpdated) {
+        setState(cloud);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(cloud));
       }
+      setIsOnline(true);
     }
+    setIsSyncing(false);
+  }, [state.lastUpdated, isSyncing]);
+
+  // Ilova yuklanganda
+  useEffect(() => {
+    const initApp = async () => {
+      setIsSyncing(true);
+      const cloud = await fetchLatestFromServer();
+      let activeState = INITIAL_STATE;
+
+      if (cloud) {
+        activeState = cloud;
+      } else {
+        const local = localStorage.getItem(STORAGE_KEY);
+        if (local) activeState = JSON.parse(local);
+      }
+
+      setState(activeState);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(activeState));
+
+      // Sessiyani tiklash
+      const savedUser = localStorage.getItem(SESSION_KEY);
+      if (savedUser && activeState.users[savedUser]) {
+        setCurrentUser(activeState.users[savedUser]);
+      }
+      setIsSyncing(false);
+    };
+    initApp();
   }, []);
 
-  // Har 10 soniyada avtomatik sinxronizatsiya
+  // Har 4 soniyada avtomatik sinxronizatsiya (Aqlli tekshirish)
   useEffect(() => {
-    const interval = setInterval(pullData, 10000);
-    return () => clearInterval(interval);
-  }, [pullData]);
+    const interval = setInterval(() => syncWithCloud(), 4000);
+    // Qurilma fokusga qaytganda ham yangilash (masalan, telefon blokdan ochilganda)
+    const handleFocus = () => syncWithCloud(true);
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [syncWithCloud]);
 
-  // Har qanday state o'zgarishidan oldin PULL qilish
-  const updateState = async (updater: (prev: AppState) => AppState) => {
-    // 1. Avval serverdan eng yangisini olamiz
-    await pullData();
+  // ASOSIY FUNKSIYA: O'zgarishlarni ziddiyatsiz saqlash
+  const performUpdate = async (updater: (prev: AppState) => AppState) => {
+    setIsSyncing(true);
     
-    // 2. Keyin yangilaymiz
-    setState(prev => {
-      const next = { ...updater(prev), lastUpdated: Date.now() };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-      // 3. Darhol serverga yuboramiz
-      pushData(next);
-      return next;
-    });
+    // 1. Avval serverdan eng so'nggi holatni olamiz (bu juda muhim!)
+    const cloud = await fetchLatestFromServer();
+    const currentState = cloud || state;
+
+    // 2. Yangi holatni hisoblaymiz
+    const updatedState = { ...updater(currentState), lastUpdated: Date.now() };
+
+    // 3. Lokal va Serverni bir vaqtda yangilaymiz
+    setState(updatedState);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedState));
+    await pushToServer(updatedState);
+    
+    setIsSyncing(false);
   };
 
   const handleLogin = (username: string, passwordHash: string, role: Role) => {
@@ -157,10 +161,11 @@ const App: React.FC = () => {
   const handleRegister = async (username: string, passwordHash: string) => {
     const cleanUsername = username.toLowerCase().trim();
     
-    // Ro'yxatdan o'tishdan oldin bazani serverdan yangilab olamiz
-    await pullData();
+    // Ro'yxatdan o'tishdan oldin serverni tekshiramiz
+    const cloud = await fetchLatestFromServer();
+    const currentUsers = cloud ? cloud.users : state.users;
 
-    if (state.users[cleanUsername]) return false;
+    if (currentUsers[cleanUsername]) return false;
 
     const newUser: User = {
       username: cleanUsername,
@@ -172,9 +177,9 @@ const App: React.FC = () => {
       registrationDate: new Date().toISOString()
     };
 
-    updateState(prev => ({ 
-      ...prev, 
-      users: { ...prev.users, [cleanUsername]: newUser } 
+    await performUpdate(prev => ({
+      ...prev,
+      users: { ...prev.users, [cleanUsername]: newUser }
     }));
     
     setCurrentUser(newUser);
@@ -202,18 +207,18 @@ const App: React.FC = () => {
         onLogout={() => {setCurrentUser(null); localStorage.removeItem(SESSION_KEY);}} 
         lang={lang}
       />
-      <div className="flex-1 flex flex-col overflow-hidden relative">
+      <div className="flex-1 flex flex-col overflow-hidden relative text-slate-100">
         <Header 
           user={currentUser} toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} 
           lang={lang} setLang={setLang} isSynced={isOnline} isSyncing={isSyncing}
-          onManualSync={() => pullData()}
+          onManualSync={() => syncWithCloud(true)}
         />
         <main className="flex-1 overflow-y-auto p-4 md:p-8">
           <div className="max-w-7xl mx-auto space-y-6">
             {!isOnline && (
-              <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl flex items-center gap-3 text-red-500 text-[10px] font-black uppercase tracking-[0.2em] animate-pulse">
-                <i className="fas fa-wifi"></i>
-                Internet bilan aloqa yo'q. Ma'lumotlar faqat lokal saqlanmoqda.
+              <div className="bg-red-500/20 border border-red-500/50 p-4 rounded-2xl flex items-center gap-3 text-red-500 text-[10px] font-black uppercase tracking-[0.2em] animate-pulse">
+                <i className="fas fa-wifi-slash"></i>
+                Internet yo'q! O'zgarishlar saqlanmasligi mumkin.
               </div>
             )}
             
@@ -221,7 +226,7 @@ const App: React.FC = () => {
             {currentView === 'courses' && (
               <CourseList 
                 courses={Object.values(state.courses)} currentUser={currentUser} 
-                onEnroll={id => updateState(p => {
+                onEnroll={id => performUpdate(p => {
                   const u = p.users[currentUser.username];
                   const c = p.courses[id];
                   if(!u || !c || u.courses.includes(id)) return p;
@@ -231,23 +236,23 @@ const App: React.FC = () => {
                     courses: { ...p.courses, [id]: { ...c, studentUsernames: [...c.studentUsernames, u.username] } }
                   };
                 })} 
-                onAddCourse={c => updateState(p => ({...p, courses: {...p.courses, [c.id]: c}}))} 
+                onAddCourse={c => performUpdate(p => ({...p, courses: {...p.courses, [c.id]: c}}))} 
                 lang={lang} 
               />
             )}
             {currentView === 'tasks' && (
               <TaskList 
                 tasks={Object.values(state.tasks)} courses={state.courses} submissions={state.submissions} currentUser={currentUser} 
-                onSubmit={s => updateState(p => ({...p, submissions: {...p.submissions, [s.id]: s}}))} 
-                onAddTask={t => updateState(p => ({...p, tasks: {...p.tasks, [t.id]: t}}))} 
-                onUpdateTask={(id, u) => updateState(p => ({...p, tasks: { ...p.tasks, [id]: p.tasks[id] ? { ...p.tasks[id], ...u } : p.tasks[id] } }))} 
+                onSubmit={s => performUpdate(p => ({...p, submissions: {...p.submissions, [s.id]: s}}))} 
+                onAddTask={t => performUpdate(p => ({...p, tasks: {...p.tasks, [t.id]: t}}))} 
+                onUpdateTask={(id, u) => performUpdate(p => ({...p, tasks: { ...p.tasks, [id]: p.tasks[id] ? { ...p.tasks[id], ...u } : p.tasks[id] } }))} 
                 lang={lang} 
               />
             )}
             {currentView === 'submissions' && (
                <SubmissionManager 
                 submissions={Object.values(state.submissions)} tasks={state.tasks} currentUser={currentUser} 
-                onGrade={(id, g, c) => updateState(prev => {
+                onGrade={(id, g, c) => performUpdate(prev => {
                   const sub = prev.submissions[id];
                   const user = prev.users[sub.username];
                   return {
@@ -262,7 +267,7 @@ const App: React.FC = () => {
             {currentView === 'users' && (
               <UserManagement 
                 users={Object.values(state.users)} 
-                onDelete={u => updateState(p => {
+                onDelete={u => performUpdate(p => {
                   const n = {...p.users}; 
                   delete n[u]; 
                   return {...p, users: n};
@@ -273,8 +278,8 @@ const App: React.FC = () => {
             {currentView === 'settings' && (
               <Settings 
                 user={currentUser} 
-                onPasswordChange={(u,h) => updateState(p => ({...p, users: {...p.users, [u]: {...p.users[u], passwordHash: h}}}))} 
-                lang={lang} state={state} onImport={s => updateState(() => s)} 
+                onPasswordChange={(u,h) => performUpdate(p => ({...p, users: {...p.users, [u]: {...p.users[u], passwordHash: h}}}))} 
+                lang={lang} state={state} onImport={s => performUpdate(() => s)} 
               />
             )}
             {currentView === 'leaderboard' && <Leaderboard state={state} lang={lang} />}
