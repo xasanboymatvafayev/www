@@ -291,7 +291,8 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, courses, submissions, curren
               </select>
               <select className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-white"
                   value={newTaskData.courseId} onChange={e => setNewTaskData({...newTaskData, courseId: e.target.value})}>
-                {Object.values(courses).map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
+                {/* Fix: Explicitly cast Object.values(courses) to Course[] to fix property access errors for 'id' and 'title' on unknown type */}
+                {(Object.values(courses) as Course[]).map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
               </select>
               <input type="number" placeholder="Time Limit (min)" className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-white"
                   value={newTaskData.timeLimit} onChange={e => setNewTaskData({...newTaskData, timeLimit: parseInt(e.target.value)})} />
