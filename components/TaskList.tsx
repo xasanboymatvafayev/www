@@ -28,13 +28,12 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, courses, submissions, curren
     description: '',
     type: 'text' as TaskType,
     courseId: Object.keys(courses)[0] || '',
-    maxPoints: 100,
+    maxPoints: 10,
     deadline: '',
     textContent: '',
     timeLimit: 5
   });
 
-  // Effect to calculate remaining time for all active global tasks
   useEffect(() => {
     const timer = setInterval(() => {
       const newTimes: Record<string, number> = {};
@@ -49,7 +48,6 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, courses, submissions, curren
           
           newTimes[task.id] = Math.floor(remaining / 1000);
 
-          // Auto-finalize if time is exactly 0 and it was active
           if (remaining <= 0 && task.lessonStatus === 'active') {
             onUpdateTask(task.id, { lessonStatus: 'completed' });
           }
@@ -83,7 +81,6 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, courses, submissions, curren
     onSubmit(submission);
     setActiveLessonId(null);
     setLessonAnswer('');
-    alert(t.success);
   };
 
   const filteredTasks = tasks.filter(task => isAdmin || currentUser.courses.includes(task.courseId));
@@ -108,8 +105,8 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, courses, submissions, curren
       <div className="space-y-4">
         {filteredTasks.map(task => {
           const course = courses[task.courseId];
-          // Fix: Explicitly cast Object.values(submissions) to Submission[] for TypeScript compatibility
-          const hasSubmitted = (Object.values(submissions) as Submission[]).some(s => s.username === currentUser.username && s.taskId === task.id);
+          const submission = (Object.values(submissions) as Submission[]).find(s => s.username === currentUser.username && s.taskId === task.id);
+          const hasSubmitted = !!submission;
           const isTimed = task.type === 'lesson';
           const secondsLeft = globalTimeLeft[task.id] || 0;
           const isExamActive = task.lessonStatus === 'active';
@@ -160,9 +157,19 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, courses, submissions, curren
                   ) : (
                     <>
                       {hasSubmitted ? (
-                        <span className="px-6 py-2 bg-emerald-600/10 text-emerald-500 border border-emerald-500/20 rounded-xl text-center font-bold">
-                          <i className="fas fa-check-circle mr-2"></i> {t.completed}
-                        </span>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className={`px-6 py-2 rounded-xl text-center font-bold border ${
+                            submission.status === 'pending' 
+                            ? 'bg-blue-600/10 text-blue-500 border-blue-500/20 animate-pulse' 
+                            : 'bg-emerald-600/10 text-emerald-500 border-emerald-500/20'
+                          }`}>
+                            <i className={`fas ${submission.status === 'pending' ? 'fa-robot' : 'fa-check-circle'} mr-2`}></i> 
+                            {submission.status === 'pending' ? 'AI grading...' : t.completed}
+                          </span>
+                          {submission.grade !== undefined && (
+                            <span className="text-emerald-400 font-bold text-sm">Score: {submission.grade}/{task.maxPoints}</span>
+                          )}
+                        </div>
                       ) : (
                         <>
                           {isTimed ? (
@@ -185,7 +192,7 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, courses, submissions, curren
                           ) : (
                             <button 
                               onClick={() => {
-                                const answer = prompt('Answer:');
+                                const answer = prompt(t.solutionPlaceholder);
                                 if(answer) {
                                   const sub: Submission = { id: 'sub_'+Date.now(), username: currentUser.username, taskId: task.id, type: 'text', answerText: answer, status: 'pending', submissionTime: new Date().toISOString() };
                                   onSubmit(sub);
@@ -207,7 +214,6 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, courses, submissions, curren
         })}
       </div>
 
-      {/* Global Lesson Modal for Students */}
       {activeLessonId && (
         <div className="fixed inset-0 bg-black/95 backdrop-blur-xl z-[100] flex items-center justify-center p-4">
           <div className="bg-[#1e293b] w-full max-w-4xl rounded-3xl border border-slate-700 overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
@@ -268,7 +274,6 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, courses, submissions, curren
         </div>
       )}
 
-      {/* Add Task Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[50] flex items-center justify-center p-4">
           <div className="bg-[#1e293b] w-full max-w-lg rounded-2xl border border-slate-700 p-8 shadow-2xl">
@@ -291,11 +296,20 @@ const TaskList: React.FC<TaskListProps> = ({ tasks, courses, submissions, curren
               </select>
               <select className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-white"
                   value={newTaskData.courseId} onChange={e => setNewTaskData({...newTaskData, courseId: e.target.value})}>
-                {/* Fix: Explicitly cast Object.values(courses) to Course[] to fix property access errors for 'id' and 'title' on unknown type */}
                 {(Object.values(courses) as Course[]).map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
               </select>
-              <input type="number" placeholder="Time Limit (min)" className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-white"
-                  value={newTaskData.timeLimit} onChange={e => setNewTaskData({...newTaskData, timeLimit: parseInt(e.target.value)})} />
+              <div className="flex gap-4">
+                <div className="flex-1">
+                   <label className="text-[10px] text-slate-500 font-bold ml-1">MAX POINTS</label>
+                   <input type="number" className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-white"
+                    value={newTaskData.maxPoints} onChange={e => setNewTaskData({...newTaskData, maxPoints: parseInt(e.target.value)})} />
+                </div>
+                <div className="flex-1">
+                   <label className="text-[10px] text-slate-500 font-bold ml-1">TIME LIMIT (MIN)</label>
+                   <input type="number" className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-white"
+                    value={newTaskData.timeLimit} onChange={e => setNewTaskData({...newTaskData, timeLimit: parseInt(e.target.value)})} />
+                </div>
+              </div>
               <textarea placeholder="Description" className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2 text-white"
                   value={newTaskData.description} onChange={e => setNewTaskData({...newTaskData, description: e.target.value})} />
               <button type="submit" className="w-full py-3 bg-blue-600 rounded-xl font-bold text-white">Create</button>
