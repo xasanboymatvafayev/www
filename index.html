@@ -23,8 +23,13 @@
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
     </style>
     <script>
-        // Polyfills for browser environment
+        // Polyfills and Environment setup
         window.process = { env: { API_KEY: "" } };
+        
+        // Debugger: Agar yuklanishda xato bo'lsa konsolda ko'rsatish
+        window.addEventListener('error', function(e) {
+            console.error('Global Runtime Error:', e.message);
+        });
     </script>
     <script type="importmap">
     {
@@ -42,6 +47,9 @@
 </head>
 <body>
     <div id="root"></div>
-    <script type="text/babel" data-presets="react,typescript" data-type="module" src="./index.tsx"></script>
+    <!-- Babel Standalone module loader -->
+    <script type="text/babel" data-presets="react,typescript" data-type="module">
+        import './index.tsx';
+    </script>
 </body>
 </html>
