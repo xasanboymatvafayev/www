@@ -9,8 +9,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Telegram Web App SDK -->
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <!-- Babel: Brauzerda TSX ni JS ga aylantirish uchun -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
         body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #f8fafc; margin: 0; overflow-x: hidden; }
@@ -22,34 +20,22 @@
         }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
     </style>
-    <script>
-        // Polyfills and Environment setup
-        window.process = { env: { API_KEY: "" } };
-        
-        // Debugger: Agar yuklanishda xato bo'lsa konsolda ko'rsatish
-        window.addEventListener('error', function(e) {
-            console.error('Global Runtime Error:', e.message);
-        });
-    </script>
-    <script type="importmap">
-    {
-      "imports": {
-        "react": "https://esm.sh/react@18.2.0",
-        "react/": "https://esm.sh/react@18.2.0/",
-        "react-dom": "https://esm.sh/react-dom@18.2.0",
-        "react-dom/": "https://esm.sh/react-dom@18.2.0/",
-        "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
-        "recharts": "https://esm.sh/recharts@2.12.7?external=react,react-dom",
-        "@google/genai": "https://esm.sh/@google/genai@1.3.0"
-      }
-    }
-    </script>
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "@google/genai": "https://esm.sh/@google/genai@^1.37.0",
+    "recharts": "https://esm.sh/recharts@^3.6.0",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
+    "vite": "https://esm.sh/vite@^7.3.1"
+  }
+}
+</script>
 </head>
 <body>
     <div id="root"></div>
-    <!-- Babel Standalone module loader -->
-    <script type="text/babel" data-presets="react,typescript" data-type="module">
-        import './index.tsx';
-    </script>
+    <script type="module" src="/index.tsx"></script>
 </body>
 </html>
