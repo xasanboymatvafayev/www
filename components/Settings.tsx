@@ -9,16 +9,19 @@ interface SettingsProps {
   lang: Language;
   state: AppState;
   onImport: (newState: AppState) => void;
+  cloudId: string;
+  onUpdateCloudId: (id: string) => void;
 }
 
 const Settings: React.FC<SettingsProps> = ({ 
-  user, onPasswordChange, lang, state, onImport
+  user, onPasswordChange, lang, state, onImport, cloudId, onUpdateCloudId
 }) => {
   const t = translations[lang] as any;
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [newCloudId, setNewCloudId] = useState(cloudId);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const hashPassword = (p: string) => {
@@ -74,13 +77,35 @@ const Settings: React.FC<SettingsProps> = ({
     <div className="max-w-2xl mx-auto space-y-8 animate-in slide-in-from-bottom-4 duration-500 pb-20">
       <div className="text-center">
         <h2 className="text-3xl font-bold">{t.settings}</h2>
-        <p className="text-slate-500 text-sm mt-2">Barcha ma'lumotlar markaziy bazaga avtomatik saqlanadi.</p>
+        <p className="text-slate-500 text-sm mt-2">Barcha qurilmalarni bitta kanal orqali sinxronlang.</p>
       </div>
 
       <div className="bg-[#1e293b] p-8 rounded-[2rem] border border-slate-800 shadow-2xl space-y-10">
         
-        {/* Profile Info */}
+        {/* Cloud Channel ID Section */}
         <section className="space-y-4">
+          <h4 className="text-sm font-black text-slate-500 uppercase tracking-widest">
+            <i className="fas fa-cloud mr-2 text-blue-500"></i> Cloud Channel ID
+          </h4>
+          <p className="text-xs text-slate-400">Bu ID-ni noutbuk va telefoningizda bir xil qilsangiz, ma'lumotlar sinxron bo'ladi.</p>
+          <div className="flex gap-2">
+            <input 
+              type="text" 
+              className="flex-1 bg-slate-900 border border-slate-800 rounded-2xl px-6 py-4 text-white focus:border-blue-500 outline-none" 
+              value={newCloudId} 
+              onChange={e => setNewCloudId(e.target.value)} 
+            />
+            <button 
+              onClick={() => onUpdateCloudId(newCloudId)}
+              className="px-6 py-4 bg-blue-600 hover:bg-blue-700 rounded-2xl font-black text-white text-xs uppercase"
+            >
+              Ulash
+            </button>
+          </div>
+        </section>
+
+        {/* Profile Info */}
+        <section className="space-y-4 border-t border-slate-800 pt-10">
           <h4 className="text-sm font-black text-slate-500 uppercase tracking-widest">
             <i className="fas fa-user-circle mr-2 text-blue-500"></i> {t.username}
           </h4>
